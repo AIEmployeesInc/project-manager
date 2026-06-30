@@ -19,44 +19,51 @@ npm start
 Then open <http://localhost:3000>. Create a channel with **+ New Channel**, then
 use **🔗 Copy link** to share a direct link to that channel.
 
-For development with auto-reload:
-
-```bash
-npm run dev
-```
+Locally there is **nothing to configure** — the app uses an embedded Postgres
+(stored in `./pgdata`) when no `DATABASE_URL` is set. For auto-reload during
+development: `npm run dev`.
 
 ## How it works
 
-| Piece        | Tech                                   |
-|--------------|----------------------------------------|
-| Server       | Node + Express                         |
-| Live updates | Socket.IO (websockets)                 |
-| Database     | SQLite (`data.db`, created on startup) |
-| File storage | Local disk (`uploads/`), via Multer    |
-| Frontend     | Vanilla HTML/CSS/JS (no build step)    |
+| Piece        | Tech                                                  |
+|--------------|-------------------------------------------------------|
+| Server       | Node + Express                                        |
+| Live updates | Socket.IO (websockets)                                |
+| Database     | Postgres (`pg`) in production; embedded PGlite locally |
+| File storage | Stored as rows in Postgres (`files.content` BYTEA)    |
+| Frontend     | Vanilla HTML/CSS/JS (no build step)                   |
 
 Files:
 
 - `server.js` — REST API + Socket.IO event handlers
-- `db.js` — SQLite schema and connection
+- `db.js` — database connection + schema (Postgres / PGlite)
 - `public/` — the single-page frontend
+- `render.yaml` — Render deployment blueprint
 
-## Deploying to the cloud
+## Deploying for free (Render + Neon)
 
-The app listens on `process.env.PORT`, so it works on most hosts as-is.
+Everything is stored in Postgres, so the app needs **no persistent disk** — it
+runs on a free web host as long as it has a database connection string.
 
-**Important for a public deployment:** SQLite (`data.db`) and the `uploads/`
-folder live on the local filesystem. On hosts with an *ephemeral* filesystem
-(many free tiers), that data is wiped on every redeploy/restart. To keep data:
+1. **Create a free Postgres database** at <https://neon.tech>. Copy its
+   **connection string** (looks like `postgresql://user:pass@host/db?sslmode=require`).
+2. **Push this repo to GitHub.**
+3. **Create a Web Service** at <https://render.com> from that repo
+   (Render auto-detects `render.yaml`). Set one environment variable:
+   - `DATABASE_URL` = the Neon connection string from step 1.
+4. Deploy. Your app will be live at `https://<your-app>.onrender.com`.
 
-- **Render / Railway / Fly.io:** attach a **persistent disk/volume** and point
-  `data.db` and `uploads/` at it.
-- **Heavier traffic / scale:** move the database to managed **Postgres** and
-  files to **S3-compatible** object storage. (Ask and I can refactor for this.)
+The database schema is created automatically on first startup.
+
+> **Free-tier note:** Render's free web service sleeps after ~15 minutes of
+> inactivity; the first visit afterward takes ~30–60s to wake. Your data is
+> safe regardless — it lives in Neon, not on the web server.
 
 ## Limits & notes
 
-- Max upload size is **50 MB** per file (configurable in `server.js`).
+- Max upload size is **10 MB** per file (configurable in `server.js`). Files are
+  stored in the database; Neon's free tier includes 0.5 GB. For lots of large
+  files, switch file storage to object storage (e.g. Cloudflare R2 / S3).
 - There is **no authentication** by design — anyone with a channel link can
-  read and post. Don't put secrets here, and consider putting the whole app
-  behind a private network or a simple shared password if needed.
+  read and post. Don't store secrets here; add a shared password or private
+  network if you need access control.
