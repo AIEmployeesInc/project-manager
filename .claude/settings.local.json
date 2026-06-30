@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npm start *)",
+      "Bash(node \"C:\\\\Users\\\\17809\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Claude-Files-Project-Organizer-Files\\\\000ed967-ade1-45a9-befc-0c00c2d38415\\\\scratchpad\\\\sockettest.mjs\")"
+    ]
+  }
+}

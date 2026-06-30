@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Organizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand" aria-label="AI Employees inc.">
+        <svg class="brand-mark" viewBox="0 0 42 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="aiGrad" x1="0" y1="0" x2="42" y2="0" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#5FB4EC" />
+              <stop offset="1" stop-color="#4A90D9" />
+            </linearGradient>
+          </defs>
+          <path d="M6 25 L16 6 L26 25" stroke="url(#aiGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M33 6 L33 25" stroke="url(#aiGrad)" stroke-width="5" stroke-linecap="round" />
+        </svg>
+        <span class="brand-text">Employees</span>
+        <span class="brand-inc">inc.</span>
+      </div>
+      <div class="sidebar-head">
+        <h1>Projects</h1>
+        <button id="newChannelBtn" class="btn-new" title="Create a channel">+ New Channel</button>
+      </div>
+      <nav id="channelList" class="channel-list"></nav>
+      <div class="sidebar-foot">
+        <span class="you-label">You are</span>
+        <button id="nameBtn" class="name-btn"></button>
+      </div>
+    </aside>
+
+    <!-- Main panel -->
+    <main class="main">
+      <!-- Empty state -->
+      <section id="emptyState" class="empty-state">
+        <div>
+          <h2>👋 Welcome</h2>
+          <p>Select a channel on the left, or create a new one to get started.</p>
+        </div>
+      </section>
+
+      <!-- Channel view -->
+      <section id="channelView" class="channel-view hidden">
+        <header class="channel-head">
+          <div>
+            <h2 id="channelName">#channel</h2>
+            <button id="copyLinkBtn" class="link-btn" title="Copy channel link">🔗 Copy link</button>
+          </div>
+          <button id="deleteChannelBtn" class="danger-btn" title="Delete channel">Delete</button>
+        </header>
+
+        <div class="channel-body">
+          <!-- Chat -->
+          <div class="chat">
+            <div id="messages" class="messages"></div>
+            <form id="messageForm" class="message-form">
+              <textarea id="messageInput" placeholder="Message this channel…" rows="1"></textarea>
+              <button type="submit">Send</button>
+            </form>
+          </div>
+
+          <!-- Right rail: files + todos -->
+          <div class="rail">
+            <div class="rail-section files-section">
+              <h3>Files</h3>
+              <label class="upload-zone" id="uploadZone">
+                <input type="file" id="fileInput" hidden />
+                <span>📎 Click or drop a file to upload</span>
+              </label>
+              <ul id="fileList" class="file-list"></ul>
+            </div>
+
+            <div class="rail-section todo-section">
+              <h3>To-Do</h3>
+              <form id="todoForm" class="todo-form">
+                <input id="todoInput" type="text" placeholder="Add a task…" />
+                <button type="submit">Add</button>
+              </form>
+              <ul id="todoList" class="todo-list"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

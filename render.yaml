@@ -1,0 +1,13 @@
+# Render Blueprint — lets you deploy this app by pointing Render at the repo.
+# The DATABASE_URL (your free Neon Postgres connection string) is set in the
+# Render dashboard, not here, so it stays secret.
+services:
+  - type: web
+    name: project-organizer
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false

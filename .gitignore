@@ -1,0 +1,13 @@
+node_modules/
+
+# Local embedded-Postgres data (used only in local development)
+pgdata/
+
+# Legacy local SQLite files (no longer used)
+data.db
+data.db-shm
+data.db-wal
+uploads/
+
+# Secrets
+.env
