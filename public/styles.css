@@ -186,7 +186,10 @@ html, body {
 
 /* ---------- Chat ---------- */
 .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.messages { flex: 1; overflow-y: auto; padding: 16px 20px; }
+/* Size to content so the input sits directly below the last message; when the
+   thread grows past the available height, this area shrinks and scrolls while
+   the input stays put just beneath it. */
+.messages { flex: 0 1 auto; overflow-y: auto; padding: 16px 20px; }
 .message { margin-bottom: 14px; }
 .message .meta { font-size: 12px; margin-bottom: 2px; }
 .message .author { font-weight: 700; color: var(--text); }
