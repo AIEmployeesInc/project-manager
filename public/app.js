@@ -29,6 +29,40 @@ function fmtSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// ---------- Panel toggles & mobile drawers ----------
+const appEl = el('app');
+const mobileMQ = window.matchMedia('(max-width: 768px)');
+
+// Desktop: panels collapse in-place (remembered per browser).
+// Mobile: the same buttons open/close slide-in drawers (one at a time).
+function applyPanelState() {
+  appEl.classList.toggle('sidebar-collapsed', localStorage.getItem('sidebarCollapsed') === '1');
+  appEl.classList.toggle('rail-collapsed', localStorage.getItem('railCollapsed') === '1');
+}
+function closeDrawers() { appEl.classList.remove('drawer-left', 'drawer-right'); }
+
+el('toggleSidebarBtn').addEventListener('click', () => {
+  if (mobileMQ.matches) {
+    const open = appEl.classList.toggle('drawer-left');
+    if (open) appEl.classList.remove('drawer-right');
+  } else {
+    const collapsed = appEl.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+  }
+});
+el('toggleRailBtn').addEventListener('click', () => {
+  if (mobileMQ.matches) {
+    const open = appEl.classList.toggle('drawer-right');
+    if (open) appEl.classList.remove('drawer-left');
+  } else {
+    const collapsed = appEl.classList.toggle('rail-collapsed');
+    localStorage.setItem('railCollapsed', collapsed ? '1' : '0');
+  }
+});
+el('backdrop').addEventListener('click', closeDrawers);
+el('emptyOpenSidebar').addEventListener('click', () => appEl.classList.add('drawer-left'));
+applyPanelState();
+
 // ---------- Display name ----------
 function ensureName() {
   if (!displayName) {
@@ -85,6 +119,7 @@ async function openChannel(id) {
   location.hash = `#/channel/${id}`;
   socket.emit('channel:join', id);
   renderChannels();
+  closeDrawers(); // on mobile, reveal the chat after picking a channel
 
   emptyState.classList.add('hidden');
   channelView.classList.remove('hidden');
@@ -219,6 +254,7 @@ socket.on('channel:deleted', ({ id }) => {
     location.hash = '';
     channelView.classList.add('hidden');
     emptyState.classList.remove('hidden');
+    if (mobileMQ.matches) appEl.classList.add('drawer-left'); // surface the channel list
   }
 });
 socket.on('message:new', (m) => {
@@ -247,5 +283,6 @@ async function boot() {
   await loadChannels();
   const match = location.hash.match(/#\/channel\/(\w+)/);
   if (match) openChannel(match[1]);
+  else if (mobileMQ.matches) appEl.classList.add('drawer-left'); // start on the channel list
 }
 boot();

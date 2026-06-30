@@ -34,6 +34,13 @@ html, body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease, min-width 0.2s ease;
+}
+#app.sidebar-collapsed .sidebar {
+  width: 0;
+  min-width: 0;
+  border-right: none;
 }
 /* Brand / logo */
 .brand {
@@ -134,7 +141,26 @@ html, body {
   padding: 14px 20px;
   border-bottom: 1px solid var(--border);
 }
-.channel-head h2 { margin: 0; display: inline-block; }
+.head-left, .head-right { display: flex; align-items: center; gap: 10px; }
+.channel-head h2 { margin: 0; }
+
+.panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  flex: none;
+}
+.panel-toggle:hover { color: var(--text); border-color: var(--accent); background: var(--panel-2); }
+/* Highlight the toggle while its panel is hidden */
+#app.sidebar-collapsed #toggleSidebarBtn,
+#app.rail-collapsed #toggleRailBtn { color: var(--accent); border-color: var(--accent); }
 .link-btn {
   margin-left: 12px;
   background: none;
@@ -206,6 +232,13 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  transition: width 0.2s ease, min-width 0.2s ease;
+}
+#app.rail-collapsed .rail {
+  width: 0;
+  min-width: 0;
+  border-left: none;
+  overflow: hidden;
 }
 .rail-section { padding: 16px; border-bottom: 1px solid var(--border); }
 .rail-section h3 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
@@ -279,3 +312,80 @@ html, body {
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: #cfd3d9; border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: #b6bbc2; }
+
+/* ---------- Mobile / responsive ---------- */
+/* Backdrop and the empty-state "Browse channels" button are desktop-hidden. */
+.backdrop { display: none; }
+.empty-open-btn {
+  display: none;
+  margin-top: 18px;
+  padding: 10px 18px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  /* Left sidebar becomes a slide-in drawer */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 82vw;
+    max-width: 300px;
+    min-width: 0;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 50;
+    border-right: 1px solid var(--border);
+  }
+  /* Neutralize the desktop collapse rule on mobile (visibility is via transform) */
+  #app.sidebar-collapsed .sidebar {
+    width: 82vw; max-width: 300px; min-width: 0; border-right: 1px solid var(--border);
+  }
+  #app.drawer-left .sidebar { transform: translateX(0); box-shadow: 0 0 30px rgba(0, 0, 0, 0.25); }
+
+  /* Right rail becomes a slide-in drawer */
+  .rail {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: 85vw;
+    max-width: 320px;
+    min-width: 0;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 50;
+    border-left: 1px solid var(--border);
+  }
+  #app.rail-collapsed .rail {
+    width: 85vw; max-width: 320px; min-width: 0; border-left: 1px solid var(--border);
+  }
+  #app.drawer-right .rail { transform: translateX(0); box-shadow: 0 0 30px rgba(0, 0, 0, 0.25); }
+
+  /* Backdrop shown whenever a drawer is open */
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 40;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  #app.drawer-left .backdrop,
+  #app.drawer-right .backdrop { opacity: 1; pointer-events: auto; }
+
+  /* Tidy the header for narrow screens */
+  .channel-head { padding: 12px 14px; }
+  .head-left { min-width: 0; }
+  .channel-head h2 { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .link-btn { display: none; }
+  .danger-btn { padding: 6px 10px; }
+  .messages { padding: 14px; }
+  .message-form { padding: 12px 14px; }
+
+  .empty-open-btn { display: inline-block; }
+}
