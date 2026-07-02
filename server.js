@@ -30,6 +30,10 @@ const mapFile = (r) => ({
   id: r.id, channel_id: r.channel_id, original_name: r.original_name,
   size: Number(r.size), mime: r.mime, uploader: r.uploader, created_at: Number(r.created_at),
 });
+const mapAttachment = (r) => ({
+  id: r.id, channel_id: r.channel_id, item_type: r.item_type, item_id: r.item_id,
+  original_name: r.original_name, size: Number(r.size), mime: r.mime, created_at: Number(r.created_at),
+});
 
 const getChannel = async (id) => (await query('SELECT * FROM channels WHERE id = $1', [id])).rows[0];
 
@@ -62,18 +66,27 @@ app.delete('/api/channels/:id', async (req, res) => {
 app.get('/api/channels/:id/state', async (req, res) => {
   const channel = await getChannel(req.params.id);
   if (!channel) return res.status(404).json({ error: 'Not found' });
-  const [messages, todos, fixes, files] = await Promise.all([
+  const [messages, todos, fixes, files, attachments] = await Promise.all([
     query('SELECT * FROM messages WHERE channel_id = $1 ORDER BY created_at ASC', [channel.id]),
     query('SELECT * FROM todos WHERE channel_id = $1 ORDER BY created_at ASC', [channel.id]),
     query('SELECT * FROM fixes WHERE channel_id = $1 ORDER BY created_at ASC', [channel.id]),
-    // Never select the file content blob here — only metadata.
+    // Never select the blob content here — only metadata.
     query('SELECT id, channel_id, original_name, size, mime, uploader, created_at FROM files WHERE channel_id = $1 ORDER BY created_at DESC', [channel.id]),
+    query('SELECT id, channel_id, item_type, item_id, original_name, size, mime, created_at FROM attachments WHERE channel_id = $1 ORDER BY created_at ASC', [channel.id]),
   ]);
+  // Group attachments under their to-do / fix item.
+  const byItem = {};
+  for (const a of attachments.rows) {
+    (byItem[`${a.item_type}:${a.item_id}`] ||= []).push(mapAttachment(a));
+  }
+  const withAttachments = (rows, type) =>
+    rows.map((r) => ({ ...mapTodo(r), attachments: byItem[`${type}:${r.id}`] || [] }));
+
   res.json({
     channel: mapChannel(channel),
     messages: messages.rows.map(mapMessage),
-    todos: todos.rows.map(mapTodo),
-    fixes: fixes.rows.map(mapTodo),
+    todos: withAttachments(todos.rows, 'todo'),
+    fixes: withAttachments(fixes.rows, 'fix'),
     files: files.rows.map(mapFile),
   });
 });
@@ -116,6 +129,54 @@ app.delete('/api/files/:id', async (req, res) => {
   if (!file) return res.status(404).json({ error: 'Not found' });
   await query('DELETE FROM files WHERE id = $1', [file.id]);
   io.to(file.channel_id).emit('file:deleted', { id: file.id });
+  res.json({ ok: true });
+});
+
+// Attachments on a to-do / fix item (e.g. screenshots)
+app.post('/api/items/:type/:id/attachments', upload.single('file'), async (req, res) => {
+  const type = req.params.type;
+  if (type !== 'todo' && type !== 'fix') return res.status(400).json({ error: 'Invalid item type' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const table = type === 'todo' ? 'todos' : 'fixes';
+  const { rows } = await query(`SELECT channel_id FROM ${table} WHERE id = $1`, [req.params.id]);
+  const item = rows[0];
+  if (!item) return res.status(404).json({ error: 'Item not found' });
+
+  const record = {
+    id: nanoid(10),
+    channel_id: item.channel_id,
+    item_type: type,
+    item_id: req.params.id,
+    original_name: req.file.originalname,
+    size: req.file.size,
+    mime: req.file.mimetype,
+    created_at: Date.now(),
+  };
+  await query(
+    'INSERT INTO attachments (id, channel_id, item_type, item_id, original_name, size, mime, content, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+    [record.id, record.channel_id, record.item_type, record.item_id, record.original_name, record.size, record.mime, req.file.buffer, record.created_at]
+  );
+  io.to(item.channel_id).emit('attachment:new', record);
+  res.status(201).json(record);
+});
+
+// Serve an attachment inline (so images open/preview in the browser)
+app.get('/api/attachments/:id', async (req, res) => {
+  const { rows } = await query('SELECT original_name, mime, content FROM attachments WHERE id = $1', [req.params.id]);
+  const att = rows[0];
+  if (!att) return res.status(404).send('Not found');
+  const safeName = String(att.original_name).replace(/"/g, '');
+  res.setHeader('Content-Type', att.mime || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+  res.send(Buffer.from(att.content));
+});
+
+app.delete('/api/attachments/:id', async (req, res) => {
+  const { rows } = await query('SELECT id, channel_id, item_type, item_id FROM attachments WHERE id = $1', [req.params.id]);
+  const att = rows[0];
+  if (!att) return res.status(404).json({ error: 'Not found' });
+  await query('DELETE FROM attachments WHERE id = $1', [att.id]);
+  io.to(att.channel_id).emit('attachment:deleted', { id: att.id, channel_id: att.channel_id, item_type: att.item_type, item_id: att.item_id });
   res.json({ ok: true });
 });
 
@@ -175,6 +236,7 @@ io.on('connection', (socket) => {
       const { rows } = await query('SELECT id, channel_id FROM todos WHERE id = $1', [id]);
       const todo = rows[0];
       if (!todo) return;
+      await query('DELETE FROM attachments WHERE item_type = $1 AND item_id = $2', ['todo', id]);
       await query('DELETE FROM todos WHERE id = $1', [id]);
       io.to(todo.channel_id).emit('todo:deleted', { id, channel_id: todo.channel_id });
     } catch (err) { console.error('todo:delete', err); }
@@ -209,6 +271,7 @@ io.on('connection', (socket) => {
       const { rows } = await query('SELECT id, channel_id FROM fixes WHERE id = $1', [id]);
       const fix = rows[0];
       if (!fix) return;
+      await query('DELETE FROM attachments WHERE item_type = $1 AND item_id = $2', ['fix', id]);
       await query('DELETE FROM fixes WHERE id = $1', [id]);
       io.to(fix.channel_id).emit('fix:deleted', { id, channel_id: fix.channel_id });
     } catch (err) { console.error('fix:delete', err); }

@@ -68,10 +68,25 @@ export async function initDb() {
       content       BYTEA NOT NULL,
       created_at    BIGINT NOT NULL
     )`,
+    // Screenshots / files attached to an individual to-do or fix item.
+    // item_type is 'todo' or 'fix'; item_id is that item's id.
+    `CREATE TABLE IF NOT EXISTS attachments (
+      id            TEXT PRIMARY KEY,
+      channel_id    TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+      item_type     TEXT NOT NULL,
+      item_id       TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      size          BIGINT NOT NULL,
+      mime          TEXT,
+      content       BYTEA NOT NULL,
+      created_at    BIGINT NOT NULL
+    )`,
     `CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_todos_channel    ON todos(channel_id, created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_fixes_channel    ON fixes(channel_id, created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_files_channel     ON files(channel_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_attach_channel    ON attachments(channel_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_attach_item       ON attachments(item_type, item_id)`,
   ];
   for (const sql of statements) await query(sql);
 }

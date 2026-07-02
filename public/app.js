@@ -234,19 +234,73 @@ async function uploadFile(file) {
   fileInput.value = '';
 }
 
-// ---------- To-dos ----------
-function addTodo(t) {
-  const li = document.createElement('li');
-  li.className = 'todo-item' + (t.done ? ' done' : '');
-  li.dataset.id = t.id;
-  li.innerHTML = `
-    <input type="checkbox" ${t.done ? 'checked' : ''} />
-    <span class="label">${escapeHtml(t.text)}</span>
-    <button class="icon-btn" title="Delete task">🗑</button>`;
-  li.querySelector('input').onchange = () => socket.emit('todo:toggle', { id: t.id });
-  li.querySelector('.icon-btn').onclick = () => socket.emit('todo:delete', { id: t.id });
-  todoList.appendChild(li);
+// ---------- Checklist items (To-do + Fixes share this) ----------
+// Builds one <li> with a checkbox, text, an attach (screenshot) button, a delete
+// button, and a strip of attachment thumbnails. `kind` is 'todo' or 'fix'.
+function makeThumb(a) {
+  const url = `/api/attachments/${a.id}`;
+  const isImage = (a.mime || '').startsWith('image/');
+  const wrap = document.createElement('div');
+  wrap.className = 'attach-thumb' + (isImage ? '' : ' is-file');
+  wrap.dataset.id = a.id;
+  if (isImage) {
+    wrap.innerHTML =
+      `<img src="${url}" alt="${escapeHtml(a.original_name)}" title="${escapeHtml(a.original_name)}" />` +
+      `<button class="attach-remove" title="Remove attachment">✕</button>`;
+    wrap.querySelector('img').onclick = () => window.open(url, '_blank');
+  } else {
+    wrap.innerHTML =
+      `<a href="${url}" target="_blank" title="${escapeHtml(a.original_name)}">📄</a>` +
+      `<button class="attach-remove" title="Remove attachment">✕</button>`;
+  }
+  wrap.querySelector('.attach-remove').onclick = () =>
+    fetch(`/api/attachments/${a.id}`, { method: 'DELETE' });
+  return wrap;
 }
+
+function buildChecklistItem(item, kind) {
+  const li = document.createElement('li');
+  li.className = 'todo-item' + (item.done ? ' done' : '');
+  li.dataset.id = item.id;
+
+  const row = document.createElement('div');
+  row.className = 'todo-row';
+  row.innerHTML = `
+    <input type="checkbox" ${item.done ? 'checked' : ''} />
+    <span class="label">${escapeHtml(item.text)}</span>
+    <button class="icon-btn attach-btn" title="Attach a screenshot">📎</button>
+    <button class="icon-btn del-btn" title="Delete">🗑</button>`;
+  li.appendChild(row);
+
+  const strip = document.createElement('div');
+  strip.className = 'item-attachments';
+  li.appendChild(strip);
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.hidden = true;
+  li.appendChild(fileInput);
+
+  row.querySelector('input[type="checkbox"]').onchange = () => socket.emit(`${kind}:toggle`, { id: item.id });
+  row.querySelector('.del-btn').onclick = () => socket.emit(`${kind}:delete`, { id: item.id });
+  row.querySelector('.attach-btn').onclick = () => fileInput.click();
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`/api/items/${kind}/${item.id}/attachments`, { method: 'POST', body: fd });
+    if (!res.ok) alert('Attachment upload failed (images up to 10 MB).');
+    fileInput.value = '';
+  };
+
+  (item.attachments || []).forEach((a) => strip.appendChild(makeThumb(a)));
+  return li;
+}
+
+// ---------- To-dos ----------
+function addTodo(t) { todoList.appendChild(buildChecklistItem(t, 'todo')); }
 el('todoForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = el('todoInput');
@@ -257,18 +311,7 @@ el('todoForm').addEventListener('submit', (e) => {
 });
 
 // ---------- Fixes (same behavior as to-dos) ----------
-function addFix(f) {
-  const li = document.createElement('li');
-  li.className = 'todo-item' + (f.done ? ' done' : '');
-  li.dataset.id = f.id;
-  li.innerHTML = `
-    <input type="checkbox" ${f.done ? 'checked' : ''} />
-    <span class="label">${escapeHtml(f.text)}</span>
-    <button class="icon-btn" title="Delete fix">🗑</button>`;
-  li.querySelector('input').onchange = () => socket.emit('fix:toggle', { id: f.id });
-  li.querySelector('.icon-btn').onclick = () => socket.emit('fix:delete', { id: f.id });
-  fixList.appendChild(li);
-}
+function addFix(f) { fixList.appendChild(buildChecklistItem(f, 'fix')); }
 el('fixForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = el('fixInput');
@@ -306,7 +349,7 @@ socket.on('todo:updated', (t) => {
   const li = todoList.querySelector(`[data-id="${t.id}"]`);
   if (!li) return;
   li.classList.toggle('done', !!t.done);
-  li.querySelector('input').checked = !!t.done;
+  li.querySelector('input[type="checkbox"]').checked = !!t.done;
 });
 socket.on('todo:deleted', ({ id }) => {
   const li = todoList.querySelector(`[data-id="${id}"]`);
@@ -317,11 +360,25 @@ socket.on('fix:updated', (f) => {
   const li = fixList.querySelector(`[data-id="${f.id}"]`);
   if (!li) return;
   li.classList.toggle('done', !!f.done);
-  li.querySelector('input').checked = !!f.done;
+  li.querySelector('input[type="checkbox"]').checked = !!f.done;
 });
 socket.on('fix:deleted', ({ id }) => {
   const li = fixList.querySelector(`[data-id="${id}"]`);
   if (li) li.remove();
+});
+
+// Attachments added/removed on a to-do or fix item (live for everyone)
+function itemListFor(type) { return type === 'fix' ? fixList : todoList; }
+socket.on('attachment:new', (a) => {
+  if (a.channel_id !== activeId) return;
+  const li = itemListFor(a.item_type).querySelector(`[data-id="${a.item_id}"]`);
+  if (li) li.querySelector('.item-attachments').appendChild(makeThumb(a));
+});
+socket.on('attachment:deleted', ({ id, channel_id, item_type, item_id }) => {
+  if (channel_id !== activeId) return;
+  const li = itemListFor(item_type).querySelector(`[data-id="${item_id}"]`);
+  const thumb = li && li.querySelector(`.attach-thumb[data-id="${id}"]`);
+  if (thumb) thumb.remove();
 });
 
 // ---------- Boot ----------
