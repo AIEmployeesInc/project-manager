@@ -77,10 +77,15 @@
             </form>
           </div>
 
-          <!-- Right rail: files + todos -->
+          <!-- Right rail: tabbed Files / To-Do / Fixes -->
           <div class="rail">
-            <div class="rail-section files-section">
-              <h3>Files</h3>
+            <div class="rail-tabs" role="tablist">
+              <button class="rail-tab active" data-tab="files" role="tab">Files</button>
+              <button class="rail-tab" data-tab="todo" role="tab">To-Do</button>
+              <button class="rail-tab" data-tab="fixes" role="tab">Fixes</button>
+            </div>
+
+            <div class="rail-panel" data-panel="files">
               <label class="upload-zone" id="uploadZone">
                 <input type="file" id="fileInput" hidden />
                 <span>📎 Click or drop a file to upload</span>
@@ -88,13 +93,20 @@
               <ul id="fileList" class="file-list"></ul>
             </div>
 
-            <div class="rail-section todo-section">
-              <h3>To-Do</h3>
+            <div class="rail-panel hidden" data-panel="todo">
               <form id="todoForm" class="todo-form">
                 <input id="todoInput" type="text" placeholder="Add a task…" />
                 <button type="submit">Add</button>
               </form>
               <ul id="todoList" class="todo-list"></ul>
+            </div>
+
+            <div class="rail-panel hidden" data-panel="fixes">
+              <form id="fixForm" class="todo-form">
+                <input id="fixInput" type="text" placeholder="Add a fix…" />
+                <button type="submit">Add</button>
+              </form>
+              <ul id="fixList" class="todo-list"></ul>
             </div>
           </div>
         </div>

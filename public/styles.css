@@ -243,8 +243,32 @@ html, body {
   border-left: none;
   overflow: hidden;
 }
-.rail-section { padding: 16px; border-bottom: 1px solid var(--border); }
-.rail-section h3 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+/* Tabbed rail: Files / To-Do / Fixes */
+.rail-tabs {
+  display: flex;
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+.rail-tab {
+  flex: 1;
+  padding: 13px 8px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.rail-tab:hover { color: var(--text); }
+.rail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.rail-panel { padding: 16px; }
+.rail-panel.hidden { display: none; }
 
 .upload-zone {
   display: block;

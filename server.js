@@ -62,9 +62,10 @@ app.delete('/api/channels/:id', async (req, res) => {
 app.get('/api/channels/:id/state', async (req, res) => {
   const channel = await getChannel(req.params.id);
   if (!channel) return res.status(404).json({ error: 'Not found' });
-  const [messages, todos, files] = await Promise.all([
+  const [messages, todos, fixes, files] = await Promise.all([
     query('SELECT * FROM messages WHERE channel_id = $1 ORDER BY created_at ASC', [channel.id]),
     query('SELECT * FROM todos WHERE channel_id = $1 ORDER BY created_at ASC', [channel.id]),
+    query('SELECT * FROM fixes WHERE channel_id = $1 ORDER BY created_at ASC', [channel.id]),
     // Never select the file content blob here — only metadata.
     query('SELECT id, channel_id, original_name, size, mime, uploader, created_at FROM files WHERE channel_id = $1 ORDER BY created_at DESC', [channel.id]),
   ]);
@@ -72,6 +73,7 @@ app.get('/api/channels/:id/state', async (req, res) => {
     channel: mapChannel(channel),
     messages: messages.rows.map(mapMessage),
     todos: todos.rows.map(mapTodo),
+    fixes: fixes.rows.map(mapTodo),
     files: files.rows.map(mapFile),
   });
 });
@@ -176,6 +178,40 @@ io.on('connection', (socket) => {
       await query('DELETE FROM todos WHERE id = $1', [id]);
       io.to(todo.channel_id).emit('todo:deleted', { id, channel_id: todo.channel_id });
     } catch (err) { console.error('todo:delete', err); }
+  });
+
+  // Fixes — a second checklist that behaves exactly like todos.
+  socket.on('fix:add', async ({ channelId, text }) => {
+    try {
+      const t = (text || '').trim();
+      if (!channelId || !t) return;
+      if (!(await getChannel(channelId))) return;
+      const fix = { id: nanoid(10), channel_id: channelId, text: t.slice(0, 500), done: false, created_at: Date.now() };
+      await query('INSERT INTO fixes (id, channel_id, text, done, created_at) VALUES ($1,$2,$3,FALSE,$4)',
+        [fix.id, fix.channel_id, fix.text, fix.created_at]);
+      io.to(channelId).emit('fix:new', fix);
+    } catch (err) { console.error('fix:add', err); }
+  });
+
+  socket.on('fix:toggle', async ({ id }) => {
+    try {
+      const { rows } = await query('SELECT * FROM fixes WHERE id = $1', [id]);
+      const fix = rows[0];
+      if (!fix) return;
+      const done = !fix.done;
+      await query('UPDATE fixes SET done = $1 WHERE id = $2', [done, id]);
+      io.to(fix.channel_id).emit('fix:updated', { ...mapTodo(fix), done });
+    } catch (err) { console.error('fix:toggle', err); }
+  });
+
+  socket.on('fix:delete', async ({ id }) => {
+    try {
+      const { rows } = await query('SELECT id, channel_id FROM fixes WHERE id = $1', [id]);
+      const fix = rows[0];
+      if (!fix) return;
+      await query('DELETE FROM fixes WHERE id = $1', [id]);
+      io.to(fix.channel_id).emit('fix:deleted', { id, channel_id: fix.channel_id });
+    } catch (err) { console.error('fix:delete', err); }
   });
 });
 

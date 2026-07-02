@@ -12,6 +12,17 @@ const channelView = el('channelView');
 const messagesEl = el('messages');
 const fileList = el('fileList');
 const todoList = el('todoList');
+const fixList = el('fixList');
+
+// ---------- Right-rail tabs ----------
+document.querySelectorAll('.rail-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.rail-tab').forEach((t) => t.classList.remove('active'));
+    document.querySelectorAll('.rail-panel').forEach((p) => p.classList.add('hidden'));
+    tab.classList.add('active');
+    document.querySelector(`.rail-panel[data-panel="${tab.dataset.tab}"]`).classList.remove('hidden');
+  });
+});
 
 // ---------- Helpers ----------
 function escapeHtml(s) {
@@ -113,7 +124,7 @@ el('newChannelBtn').addEventListener('click', async () => {
 async function openChannel(id) {
   const res = await fetch(`/api/channels/${id}/state`);
   if (!res.ok) { alert('Channel not found'); location.hash = ''; return; }
-  const { channel, messages, todos, files } = await res.json();
+  const { channel, messages, todos, fixes, files } = await res.json();
 
   activeId = id;
   location.hash = `#/channel/${id}`;
@@ -134,6 +145,9 @@ async function openChannel(id) {
 
   todoList.innerHTML = '';
   todos.forEach(addTodo);
+
+  fixList.innerHTML = '';
+  (fixes || []).forEach(addFix);
 }
 
 el('deleteChannelBtn').addEventListener('click', async () => {
@@ -242,6 +256,28 @@ el('todoForm').addEventListener('submit', (e) => {
   input.value = '';
 });
 
+// ---------- Fixes (same behavior as to-dos) ----------
+function addFix(f) {
+  const li = document.createElement('li');
+  li.className = 'todo-item' + (f.done ? ' done' : '');
+  li.dataset.id = f.id;
+  li.innerHTML = `
+    <input type="checkbox" ${f.done ? 'checked' : ''} />
+    <span class="label">${escapeHtml(f.text)}</span>
+    <button class="icon-btn" title="Delete fix">🗑</button>`;
+  li.querySelector('input').onchange = () => socket.emit('fix:toggle', { id: f.id });
+  li.querySelector('.icon-btn').onclick = () => socket.emit('fix:delete', { id: f.id });
+  fixList.appendChild(li);
+}
+el('fixForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = el('fixInput');
+  const text = input.value.trim();
+  if (!text || !activeId) return;
+  socket.emit('fix:add', { channelId: activeId, text });
+  input.value = '';
+});
+
 // ---------- Socket events ----------
 socket.on('channel:new', (c) => {
   if (!channels.find((x) => x.id === c.id)) { channels.push(c); renderChannels(); }
@@ -274,6 +310,17 @@ socket.on('todo:updated', (t) => {
 });
 socket.on('todo:deleted', ({ id }) => {
   const li = todoList.querySelector(`[data-id="${id}"]`);
+  if (li) li.remove();
+});
+socket.on('fix:new', (f) => { if (f.channel_id === activeId) addFix(f); });
+socket.on('fix:updated', (f) => {
+  const li = fixList.querySelector(`[data-id="${f.id}"]`);
+  if (!li) return;
+  li.classList.toggle('done', !!f.done);
+  li.querySelector('input').checked = !!f.done;
+});
+socket.on('fix:deleted', ({ id }) => {
+  const li = fixList.querySelector(`[data-id="${id}"]`);
   if (li) li.remove();
 });
 

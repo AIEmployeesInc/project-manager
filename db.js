@@ -51,6 +51,13 @@ export async function initDb() {
       done        BOOLEAN NOT NULL DEFAULT FALSE,
       created_at  BIGINT NOT NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS fixes (
+      id          TEXT PRIMARY KEY,
+      channel_id  TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+      text        TEXT NOT NULL,
+      done        BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at  BIGINT NOT NULL
+    )`,
     `CREATE TABLE IF NOT EXISTS files (
       id            TEXT PRIMARY KEY,
       channel_id    TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -63,6 +70,7 @@ export async function initDb() {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_todos_channel    ON todos(channel_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_fixes_channel    ON fixes(channel_id, created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_files_channel     ON files(channel_id, created_at)`,
   ];
   for (const sql of statements) await query(sql);
