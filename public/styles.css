@@ -331,6 +331,9 @@ html, body {
   margin-bottom: 4px;
 }
 .todo-item:hover { background: var(--panel-2); }
+/* The item a pasted screenshot will attach to */
+.todo-item.paste-target { box-shadow: inset 0 0 0 2px var(--accent); }
+.paste-hint { font-size: 11px; color: var(--muted); margin: 8px 0 4px; }
 .todo-row { display: flex; align-items: center; gap: 8px; }
 .todo-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--done); flex: none; }
 .todo-item .label { flex: 1; word-wrap: break-word; min-width: 0; }

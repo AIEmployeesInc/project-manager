@@ -258,6 +258,22 @@ function makeThumb(a) {
   return wrap;
 }
 
+// Which item a pasted screenshot (Ctrl+V) will attach to — the last one
+// hovered or clicked. Highlighted so it's clear where the paste will land.
+let pasteTarget = null; // { kind, id, el }
+function setPasteTarget(li, kind) {
+  if (pasteTarget && pasteTarget.el && pasteTarget.el !== li) pasteTarget.el.classList.remove('paste-target');
+  li.classList.add('paste-target');
+  pasteTarget = { kind, id: li.dataset.id, el: li };
+}
+
+async function uploadAttachment(kind, id, file) {
+  const fd = new FormData();
+  fd.append('file', file, file.name || `pasted-${Date.now()}.png`);
+  const res = await fetch(`/api/items/${kind}/${id}/attachments`, { method: 'POST', body: fd });
+  if (!res.ok) alert('Attachment upload failed (images up to 10 MB).');
+}
+
 function buildChecklistItem(item, kind) {
   const li = document.createElement('li');
   li.className = 'todo-item' + (item.done ? ' done' : '');
@@ -268,7 +284,7 @@ function buildChecklistItem(item, kind) {
   row.innerHTML = `
     <input type="checkbox" ${item.done ? 'checked' : ''} />
     <span class="label">${escapeHtml(item.text)}</span>
-    <button class="icon-btn attach-btn" title="Attach a screenshot">📎</button>
+    <button class="icon-btn attach-btn" title="Attach a screenshot (or hover and paste)">📎</button>
     <button class="icon-btn del-btn" title="Delete">🗑</button>`;
   li.appendChild(row);
 
@@ -286,18 +302,31 @@ function buildChecklistItem(item, kind) {
   row.querySelector('.del-btn').onclick = () => socket.emit(`${kind}:delete`, { id: item.id });
   row.querySelector('.attach-btn').onclick = () => fileInput.click();
   fileInput.onchange = async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
-    const res = await fetch(`/api/items/${kind}/${item.id}/attachments`, { method: 'POST', body: fd });
-    if (!res.ok) alert('Attachment upload failed (images up to 10 MB).');
+    if (fileInput.files[0]) await uploadAttachment(kind, item.id, fileInput.files[0]);
     fileInput.value = '';
   };
+
+  // Designate this item as the paste target when hovered or clicked.
+  li.addEventListener('mouseenter', () => setPasteTarget(li, kind));
+  li.addEventListener('click', () => setPasteTarget(li, kind));
 
   (item.attachments || []).forEach((a) => strip.appendChild(makeThumb(a)));
   return li;
 }
+
+// Paste a screenshot from the clipboard onto the active (hovered/clicked) item.
+document.addEventListener('paste', (e) => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  let file = null;
+  for (const it of items) {
+    if (it.kind === 'file' && (it.type || '').startsWith('image/')) { file = it.getAsFile(); break; }
+  }
+  if (!file) return; // not an image paste — let the normal paste happen
+  if (!activeId || !pasteTarget || !pasteTarget.el.isConnected) return;
+  e.preventDefault();
+  uploadAttachment(pasteTarget.kind, pasteTarget.id, file);
+});
 
 // ---------- To-dos ----------
 function addTodo(t) { todoList.appendChild(buildChecklistItem(t, 'todo')); }
