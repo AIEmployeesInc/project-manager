@@ -98,11 +98,17 @@ async function loadChannels() {
   renderChannels();
 }
 
+// Channels with unread messages (marked bold in the sidebar until opened).
+const unread = new Set();
+
 function renderChannels() {
   channelList.innerHTML = '';
   channels.forEach((c) => {
     const div = document.createElement('div');
-    div.className = 'channel-item' + (c.id === activeId ? ' active' : '');
+    div.className = 'channel-item'
+      + (c.id === activeId ? ' active' : '')
+      + (unread.has(c.id) ? ' unread' : '');
+    div.dataset.id = c.id;
     div.innerHTML = `<span class="hash">#</span><span class="cname">${escapeHtml(c.name)}</span>`;
     div.onclick = () => openChannel(c.id);
     channelList.appendChild(div);
@@ -127,6 +133,7 @@ async function openChannel(id) {
   const { channel, messages, todos, fixes, files } = await res.json();
 
   activeId = id;
+  unread.delete(id); // opening a channel clears its unread marker
   location.hash = `#/channel/${id}`;
   socket.emit('channel:join', id);
   renderChannels();
@@ -169,9 +176,14 @@ el('copyLinkBtn').addEventListener('click', () => {
 function addMessage(m) {
   const div = document.createElement('div');
   div.className = 'message';
+  div.dataset.id = m.id;
   div.innerHTML = `
+    <button class="msg-del icon-btn" title="Delete message">🗑</button>
     <div class="meta"><span class="author">${escapeHtml(m.author)}</span><span class="time">${fmtTime(m.created_at)}</span></div>
     <div class="body">${escapeHtml(m.body)}</div>`;
+  div.querySelector('.msg-del').onclick = () => {
+    if (confirm('Delete this message?')) socket.emit('message:delete', { id: m.id });
+  };
   messagesEl.appendChild(div);
 }
 function scrollMessages() { messagesEl.scrollTop = messagesEl.scrollHeight; }
@@ -367,6 +379,15 @@ socket.on('channel:deleted', ({ id }) => {
 });
 socket.on('message:new', (m) => {
   if (m.channel_id === activeId) { addMessage(m); scrollMessages(); }
+});
+socket.on('message:deleted', ({ id }) => {
+  const div = messagesEl.querySelector(`.message[data-id="${id}"]`);
+  if (div) div.remove();
+});
+// A message was posted in some channel — mark it unread unless we're viewing it.
+socket.on('channel:activity', ({ channelId }) => {
+  if (channelId === activeId) return;
+  if (!unread.has(channelId)) { unread.add(channelId); renderChannels(); }
 });
 socket.on('file:new', (f) => { if (f.channel_id === activeId) addFile(f); });
 socket.on('file:deleted', ({ id }) => {

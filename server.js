@@ -205,7 +205,19 @@ io.on('connection', (socket) => {
       await query('INSERT INTO messages (id, channel_id, author, body, created_at) VALUES ($1,$2,$3,$4,$5)',
         [msg.id, msg.channel_id, msg.author, msg.body, msg.created_at]);
       io.to(channelId).emit('message:new', msg);
+      // Tell every client so channels with new messages can be flagged unread.
+      io.emit('channel:activity', { channelId });
     } catch (err) { console.error('message:send', err); }
+  });
+
+  socket.on('message:delete', async ({ id }) => {
+    try {
+      const { rows } = await query('SELECT id, channel_id FROM messages WHERE id = $1', [id]);
+      const msg = rows[0];
+      if (!msg) return;
+      await query('DELETE FROM messages WHERE id = $1', [id]);
+      io.to(msg.channel_id).emit('message:deleted', { id, channel_id: msg.channel_id });
+    } catch (err) { console.error('message:delete', err); }
   });
 
   socket.on('todo:add', async ({ channelId, text }) => {
